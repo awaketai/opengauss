@@ -1,4 +1,4 @@
-module gorm.io/driver/opengauss
+module github.com/awaketai/opengauss
 
 go 1.19
 
