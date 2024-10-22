@@ -1,4 +1,4 @@
-package postgres
+package opengauss
 
 import (
 	"database/sql"
@@ -44,7 +44,7 @@ func New(config Config) gorm.Dialector {
 }
 
 func (dialector Dialector) Name() string {
-	return "postgres"
+	return "opengauss"
 }
 
 func (dialector Dialector) Apply(config *gorm.Config) error {
@@ -260,6 +260,62 @@ func (dialector Dialector) getSchemaCustomType(field *schema.Field) string {
 		default:
 			sqlType = "bigserial"
 		}
+	}
+	// text type detect
+	if textType, ok := textTypesMap[strings.ToUpper(sqlType)]; ok {
+		sqlType = textType
+	}
+	// date type detect
+	if textType, ok := dateTypesMap[strings.ToUpper(sqlType)]; ok {
+		sqlType = textType
+	}
+	// remove the number display width
+	if strings.Contains(sqlType, "int") ||
+		strings.Contains(sqlType, "float") ||
+		strings.Contains(sqlType, "double") {
+		sqlType = dialector.removeFiledDisplayWidthAndConvertType(sqlType)
+	}
+
+	return sqlType
+}
+
+var textTypesMap = map[string]string{
+	"TINYTEXT":   "text",
+	"TEXT":       "text",
+	"MEDIUMTEXT": "text",
+	"LONGTEXT":   "text",
+}
+
+var dateTypesMap = map[string]string{
+	"DATE":      "date",
+	"TIME":      "time",
+	"DATETIME":  "timestamp",
+	"TIMESTAMP": "timestamp",
+}
+
+var numericTypesMap = map[string]string{
+	"TINYINT":   "tinyint",
+	"SMALLINT":  "smallint",
+	"INT":       "integer",
+	"INTEGER":   "integer",
+	"MEDIUMINT": "integer",
+	"BIGINT":    "bigint",
+	"FLOAT":     "real",
+	"DOUBLE":    "float8",
+}
+
+func (dialector Dialector) removeFiledDisplayWidthAndConvertType(sqlType string) string {
+	columnType := ""
+	// wipe out unsigned word
+	columnType = strings.ToUpper(sqlType)
+	columnType = strings.Replace(columnType, "UNSIGNED", "", -1)
+	leftIndex := strings.Index(columnType, "(")
+	if leftIndex != -1 {
+		columnType = sqlType[:leftIndex]
+	}
+	columnType = strings.TrimSpace(columnType)
+	if fieldType, ok := numericTypesMap[strings.ToUpper(columnType)]; ok {
+		return fieldType
 	}
 
 	return sqlType

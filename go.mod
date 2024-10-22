@@ -1,4 +1,4 @@
-module gorm.io/driver/postgres
+module gorm.io/driver/opengauss
 
 go 1.19
 

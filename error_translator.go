@@ -1,4 +1,4 @@
-package postgres
+package opengauss
 
 import (
 	"encoding/json"

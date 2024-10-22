@@ -1,4 +1,4 @@
-package postgres
+package opengauss
 
 import (
 	"database/sql"
@@ -60,6 +60,7 @@ var typeAliasMap = map[string][]string{
 	"float4":                   {"real"},
 	"float8":                   {"double precision"},
 	"timetz":                   {"time with time zone"},
+	"longtext":                 {"text"},
 }
 
 type Migrator struct {
@@ -134,7 +135,7 @@ func (m Migrator) CreateIndex(value interface{}, name string) error {
 					createIndexSQL += "CONCURRENTLY "
 				}
 
-				createIndexSQL += "IF NOT EXISTS ? ON ?"
+				createIndexSQL += " ? ON ?"
 
 				if idx.Type != "" {
 					createIndexSQL += " USING " + idx.Type + "(?)"
