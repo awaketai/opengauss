@@ -123,7 +123,18 @@ func (m Migrator) CreateIndex(value interface{}, name string) error {
 		if stmt.Schema != nil {
 			if idx := stmt.Schema.LookIndex(name); idx != nil {
 				opts := m.BuildIndexOptions(idx.Fields, stmt)
-				values := []interface{}{clause.Column{Name: idx.Name}, m.CurrentTable(stmt), opts}
+				// if the same schema has same index name
+				// opengauss will throw error,so the index name
+				// use table_name.idx_name
+				idxName := ""
+				if stmt != nil && stmt.Table != "" {
+					idxName = stmt.Table + "_" + idx.Name
+				} else {
+					idxName = idx.Name
+				}
+				values := []interface{}{clause.Column{
+					Name: idxName,
+				}, m.CurrentTable(stmt), opts}
 
 				createIndexSQL := "CREATE "
 				if idx.Class != "" {

@@ -262,12 +262,14 @@ func (dialector Dialector) getSchemaCustomType(field *schema.Field) string {
 		}
 	}
 	// text type detect
-	if textType, ok := textTypesMap[strings.ToUpper(sqlType)]; ok {
+	textType, ok := dialector.compatibilityMysqlSyntax(textTypesMap, strings.ToUpper(sqlType))
+	if ok {
 		sqlType = textType
 	}
 	// date type detect
-	if textType, ok := dateTypesMap[strings.ToUpper(sqlType)]; ok {
-		sqlType = textType
+	dateType, ok := dialector.compatibilityMysqlSyntax(dateTypesMap, strings.ToUpper(sqlType))
+	if ok {
+		sqlType = dateType
 	}
 	// remove the number display width
 	tmpType := strings.ToLower(sqlType)
@@ -318,8 +320,21 @@ func (dialector Dialector) removeFiledDisplayWidthAndConvertType(sqlType string)
 	if fieldType, ok := numericTypesMap[strings.ToUpper(columnType)]; ok {
 		return fieldType
 	}
+	// compatibility with mysql similar to this syntax：TINYINT UNSIGNED NOT NULL
+	columnType, _ = dialector.compatibilityMysqlSyntax(numericTypesMap, columnType)
 
-	return sqlType
+	return columnType
+}
+
+func (dialector Dialector) compatibilityMysqlSyntax(fieldTypeMap map[string]string, sqlType string) (string, bool) {
+	// compatibility with mysql similar to this syntax：TINYINT UNSIGNED NOT NULL
+	for k, v := range fieldTypeMap {
+		if strings.Contains(sqlType, k) {
+			return v, true
+		}
+	}
+
+	return sqlType, false
 }
 
 func (dialector Dialector) SavePoint(tx *gorm.DB, name string) error {
