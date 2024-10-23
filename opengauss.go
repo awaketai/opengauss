@@ -270,9 +270,10 @@ func (dialector Dialector) getSchemaCustomType(field *schema.Field) string {
 		sqlType = textType
 	}
 	// remove the number display width
-	if strings.Contains(sqlType, "int") ||
-		strings.Contains(sqlType, "float") ||
-		strings.Contains(sqlType, "double") {
+	tmpType := strings.ToLower(sqlType)
+	if strings.Contains(tmpType, "int") ||
+		strings.Contains(tmpType, "float") ||
+		strings.Contains(tmpType, "double") {
 		sqlType = dialector.removeFiledDisplayWidthAndConvertType(sqlType)
 	}
 
