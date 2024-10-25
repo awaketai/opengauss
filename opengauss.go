@@ -282,31 +282,6 @@ func (dialector Dialector) getSchemaCustomType(field *schema.Field) string {
 	return sqlType
 }
 
-var textTypesMap = map[string]string{
-	"TINYTEXT":   "text",
-	"TEXT":       "text",
-	"MEDIUMTEXT": "text",
-	"LONGTEXT":   "text",
-}
-
-var dateTypesMap = map[string]string{
-	"DATE":      "date",
-	"TIME":      "time",
-	"DATETIME":  "timestamp",
-	"TIMESTAMP": "timestamp",
-}
-
-var numericTypesMap = map[string]string{
-	"TINYINT":   "tinyint",
-	"SMALLINT":  "smallint",
-	"INT":       "integer",
-	"INTEGER":   "integer",
-	"MEDIUMINT": "integer",
-	"BIGINT":    "bigint",
-	"FLOAT":     "real",
-	"DOUBLE":    "float8",
-}
-
 func (dialector Dialector) removeFiledDisplayWidthAndConvertType(sqlType string) string {
 	columnType := ""
 	// wipe out unsigned word

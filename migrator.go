@@ -2,6 +2,7 @@ package opengauss
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -101,6 +102,94 @@ func (m Migrator) BuildIndexOptions(opts []schema.IndexOption, stmt *gorm.Statem
 	return
 }
 
+// AutoMigrate auto migrate values
+func (m Migrator) AutoMigrate(values ...interface{}) error {
+	for _, value := range m.ReorderModels(values, true) {
+		queryTx, execTx := m.GetQueryAndExecTx()
+		if !queryTx.Migrator().HasTable(value) {
+			if err := execTx.Migrator().CreateTable(value); err != nil {
+				return err
+			}
+		} else {
+			if err := m.RunWithValue(value, func(stmt *gorm.Statement) error {
+
+				if stmt.Schema == nil {
+					return errors.New("failed to get schema")
+				}
+
+				columnTypes, err := queryTx.Migrator().ColumnTypes(value)
+				if err != nil {
+					return err
+				}
+				var (
+					parseIndexes          = stmt.Schema.ParseIndexes()
+					parseCheckConstraints = stmt.Schema.ParseCheckConstraints()
+				)
+				for _, dbName := range stmt.Schema.DBNames {
+					var foundColumn gorm.ColumnType
+
+					for _, columnType := range columnTypes {
+						if columnType.Name() == dbName {
+							foundColumn = columnType
+							break
+						}
+					}
+
+					if foundColumn == nil {
+						// not found, add column
+						if err = execTx.Migrator().AddColumn(value, dbName); err != nil {
+							return err
+						}
+					} else {
+						// found, smartly migrate
+						field := stmt.Schema.FieldsByDBName[dbName]
+						if err = execTx.Migrator().MigrateColumn(value, field, foundColumn); err != nil {
+							return err
+						}
+					}
+				}
+
+				if !m.DB.DisableForeignKeyConstraintWhenMigrating && !m.DB.IgnoreRelationshipsWhenMigrating {
+					for _, rel := range stmt.Schema.Relationships.Relations {
+						if rel.Field.IgnoreMigration {
+							continue
+						}
+						if constraint := rel.ParseConstraint(); constraint != nil &&
+							constraint.Schema == stmt.Schema && !queryTx.Migrator().HasConstraint(value, constraint.Name) {
+							if err := execTx.Migrator().CreateConstraint(value, constraint.Name); err != nil {
+								return err
+							}
+						}
+					}
+				}
+
+				for _, chk := range parseCheckConstraints {
+					if !queryTx.Migrator().HasConstraint(value, chk.Name) {
+						if err := execTx.Migrator().CreateConstraint(value, chk.Name); err != nil {
+							return err
+						}
+					}
+				}
+
+				for _, idx := range parseIndexes {
+					//indexName := stmt.Table + "_" + idx.Name
+					if !queryTx.Migrator().HasIndex(value, idx.Name) {
+						if err := execTx.Migrator().CreateIndex(value, idx.Name); err != nil {
+							return err
+						}
+					}
+				}
+
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (m Migrator) HasIndex(value interface{}, name string) bool {
 	var count int64
 	m.RunWithValue(value, func(stmt *gorm.Statement) error {
@@ -123,15 +212,7 @@ func (m Migrator) CreateIndex(value interface{}, name string) error {
 		if stmt.Schema != nil {
 			if idx := stmt.Schema.LookIndex(name); idx != nil {
 				opts := m.BuildIndexOptions(idx.Fields, stmt)
-				// if the same schema has same index name
-				// opengauss will throw error,so the index name
-				// use table_name.idx_name
-				idxName := ""
-				if stmt != nil && stmt.Table != "" {
-					idxName = stmt.Table + "_" + idx.Name
-				} else {
-					idxName = idx.Name
-				}
+				idxName := idx.Name
 				values := []interface{}{clause.Column{
 					Name: idxName,
 				}, m.CurrentTable(stmt), opts}
@@ -423,6 +504,16 @@ func (m Migrator) AlterColumn(value interface{}, field string) error {
 	m.resetPreparedStmts()
 	return nil
 }
+
+//func (m Migrator) fieldTypeConvert(fieldType clause.Expr) clause.Expr {
+//	for k, v := range textTypesMap {
+//		upperType := strings.ToUpper(fieldType.SQL)
+//		if strings.Contains(upperType, k) {
+//
+//		}
+//	}
+//
+//}
 
 func (m Migrator) modifyColumn(stmt *gorm.Statement, field *schema.Field, targetType clause.Expr, existingColumn *migrator.ColumnType) error {
 	alterSQL := "ALTER TABLE ? ALTER COLUMN ? TYPE ? USING ?::?"
