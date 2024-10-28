@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -303,10 +304,23 @@ func (dialector Dialector) removeFiledDisplayWidthAndConvertType(sqlType string)
 
 func (dialector Dialector) compatibilityMysqlSyntax(fieldTypeMap map[string]string, sqlType string) (string, bool) {
 	// compatibility with mysql similar to this syntax：TINYINT UNSIGNED NOT NULL
-	for k, v := range fieldTypeMap {
-		if strings.Contains(sqlType, k) {
-			return v, true
-		}
+	var keys []string
+	for k := range fieldTypeMap {
+		keys = append(keys, k)
+	}
+	// 确保较长的键优先匹配
+	sort.Slice(keys, func(i, j int) bool {
+		return len(keys[i]) > len(keys[j])
+	})
+	pattern := `(?i)\b(?:` + strings.Join(escapeKeys(keys), "|") + `)\b`
+	re, _ := regexp.Compile(pattern)
+	matches := re.FindStringSubmatch(sqlType)
+	if len(matches) == 0 {
+		return sqlType, false
+	}
+	dataType := matches[0]
+	if val, ok := fieldTypeMap[dataType]; ok {
+		return val, true
 	}
 
 	return sqlType, false
@@ -333,4 +347,12 @@ func getSerialDatabaseType(s string) (dbType string, ok bool) {
 	default:
 		return "", false
 	}
+}
+
+func escapeKeys(keys []string) []string {
+	escapedKeys := make([]string, len(keys))
+	for i, key := range keys {
+		escapedKeys[i] = regexp.QuoteMeta(key)
+	}
+	return escapedKeys
 }

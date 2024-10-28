@@ -1,8 +1,8 @@
 package opengauss
 
 var textTypesMap = map[string]string{
-	"TINYTEXT":   "text",
 	"TEXT":       "text",
+	"TINYTEXT":   "text",
 	"MEDIUMTEXT": "text",
 	"LONGTEXT":   "text",
 }
